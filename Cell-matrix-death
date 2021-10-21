@@ -1,0 +1,1254 @@
+
+
+#simulation for 
+dir='/Users/yeyusong/Desktop/德国工作 project/Cell-matrix/results/movies_of_biofilm'
+
+dirsave='/Users/yeyusong/Desktop/德国工作 project/Cell-matrix/results'
+
+#difine matrix and initial condition
+size_matrix=150
+kbt=1
+division_rate=2
+secrete_rate=2
+drift_rate=3
+drift_cell_rate=1
+drift_matrix_rate=2
+
+ifcut=70
+
+ifsqr=1
+coorx1=0
+coorx2=75
+coory1=65
+coory2=85
+
+ifround=0
+round_r=15
+roundcenter_x=50
+roundcenter_y=50
+
+cutline1=seq(1,size_matrix,1)
+cutline2=seq(1,size_matrix,1)
+cutline3=seq(1,size_matrix,1)
+cutrange=3
+cutline1y=30
+cutline2y=50
+cutline3y=70
+
+death_rate=0
+base_deathrate=0
+base_deathrate_2=0.007
+
+limit_of_cell_layer=5
+limit_of_matrix_layer=5
+
+moviestep_biofilm=10000
+totalsteps_biofilm=2000000
+
+c_weight=1.5
+#c-c
+c1_weight=1
+#c-m
+c2_weight=1
+#m-m
+c3_weight=1
+
+j_weight=1
+
+total_cell=0
+total_matrix=0
+
+index_cell_i=c()
+index_cell_j=c()
+indexcell=0
+age_cell=c(0,0,0,0)
+live_or_death=c(0,0,0,0)
+
+
+index_matrix_i=c()
+index_matrix_j=c()
+indexmatrix=0
+
+
+lattice_cell=matrix(0,nrow=size_matrix, ncol=size_matrix)
+lattice_cell_new=matrix(0,nrow=size_matrix, ncol=size_matrix)
+
+lattice_deathcell=matrix(0,nrow=size_matrix, ncol=size_matrix)
+
+lattice_matrix=matrix(0,nrow=size_matrix, ncol=size_matrix)
+lattice_matrix_new=matrix(0,nrow=size_matrix, ncol=size_matrix)
+
+#1 cell 2 matrix 3 deathcell
+coefficientmatrix_biofilm=matrix(0,nrow=3,ncol=3)
+coefficientmatrix_biofilm[1,1]=0
+coefficientmatrix_biofilm[1,2]=0.2
+
+coefficientmatrix_biofilm[2,1]=0.2
+coefficientmatrix_biofilm[2,2]=0
+
+coefficientmatrix_biofilm[1,3]=0
+coefficientmatrix_biofilm[3,1]=0
+
+interaction_cell_death=-0.3
+
+
+for(i in (size_matrix/2):(size_matrix/2+1))
+{
+  for(j in (size_matrix/2):(size_matrix/2+1))
+  {
+    {
+      lattice_cell[i,j]=1
+      indexcell=indexcell+1
+      index_cell_i=c(index_cell_i,i)
+      index_cell_j=c(index_cell_j,j)
+      total_cell=total_cell+1
+    }
+  }
+}
+lattice_cell_new=lattice_cell
+
+for(i in (size_matrix/2):(size_matrix/2+1))
+{
+  for(j in (size_matrix/2):(size_matrix/2+1))
+  {
+    {
+      lattice_matrix[i,j]=1
+      indexmatrix=indexmatrix+1
+      index_matrix_i=c(index_matrix_i,i)
+      index_matrix_j=c(index_matrix_j,j)
+      total_matrix=total_matrix+1
+    }
+  }
+}
+lattice_matrix_new=lattice_matrix
+
+
+dev.off()
+par(mar=c(1,1,1,1))
+max_celllayer=max(lattice_cell)
+max_matrixlayer=max(lattice_matrix)
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_matrix[i,j]!=0)
+      polygon(c(j-1,j,j,j-1),c(size_matrix-i,size_matrix-i,size_matrix-i+1,size_matrix-i+1), density = NULL, border = F, col = rgb(1-lattice_matrix[i,j]/max_matrixlayer*190/255,1-lattice_matrix[i,j]/max_matrixlayer*150/255,1-lattice_matrix[i,j]/max_matrixlayer*30/255))
+  }
+}
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_cell[i,j]!=0)
+      polygon(c(j-1+0.2,j-0.2,j-0.2,j-1+0.2),c(size_matrix-i+0.2,size_matrix-i+0.2,size_matrix-i+1-0.2,size_matrix-i+1-0.2), density = NULL, border = F, col = rgb(1,1-lattice_cell[i,j]/max_celllayer,1-lattice_cell[i,j]/max_celllayer))
+  }
+}
+
+
+
+
+
+#simulation
+
+#simulation and create movie
+Sys.time()
+successunmber_cell=0
+successunmber_matrix=0
+successunmber_cellmove=0
+successunmber_matrixmove=0
+
+
+countsteps_biofilm=totalsteps_biofilm/moviestep_biofilm
+
+TL_successunmber_cell=c()
+TL_successunmber_matrix=c()
+TL_successunmber_cellmove=c()
+TL_successunmber_matrixmove=c()
+
+#define function
+#old new site
+choose_newsite_drift <- function(old_i,old_j)
+{
+  neibor_j=c(old_j-1,old_j-1,old_j-1,old_j,old_j+1,old_j+1,old_j+1,old_j)
+  neibor_i=c(old_i-1,old_i,old_i+1,old_i+1,old_i+1,old_i,old_i-1,old_i-1)
+  new_site=sample(1:8,size=1)
+  new_j=neibor_j[new_site]
+  new_i=neibor_i[new_site]
+  return(c(new_i,new_j))
+}
+
+choose_newsite_create <- function(old_i,old_j)
+{
+  neibor_j=c(old_j-1,old_j-1,old_j-1,old_j,old_j+1,old_j+1,old_j+1,old_j,old_j)
+  neibor_i=c(old_i-1,old_i,old_i+1,old_i+1,old_i+1,old_i,old_i-1,old_i-1,old_i)
+  new_site=sample(1:9,size=1)
+  new_j=neibor_j[new_site]
+  new_i=neibor_i[new_site]
+  return(c(new_i,new_j))
+}
+
+#calculation energy
+calculation_energy <- function(celltype,site_i,site_j,Matrix_of_cell,Matrix_of_matrix,size_matrix)
+{
+  neibor_j=c(site_j-1,site_j-1,site_j-1,site_j,site_j+1,site_j+1,site_j+1,site_j,site_j)
+  neibor_i=c(site_i-1,site_i,site_i+1,site_i+1,site_i+1,site_i,site_i-1,site_i-1,site_i)
+  countofcell=0
+  countofmatrix=0
+  neighber_of_deathcell=0
+  for(countsite in 1:9)
+  {
+    if(neibor_i[countsite]>0 & neibor_i[countsite]<size_matrix+1 & neibor_j[countsite]>0 & neibor_j[countsite]<size_matrix+1)
+    {
+      countofcell=countofcell+Matrix_of_cell[neibor_i[countsite],neibor_j[countsite]]
+      neighber_of_deathcell=neighber_of_deathcell+lattice_deathcell[neibor_i[countsite],neibor_j[countsite]]
+    }
+  }
+  for(countsite in 1:9)
+  {
+    if(neibor_i[countsite]>0 & neibor_i[countsite]<size_matrix+1 & neibor_j[countsite]>0 & neibor_j[countsite]<size_matrix+1)
+      countofmatrix=countofmatrix+Matrix_of_matrix[neibor_i[countsite],neibor_j[countsite]]
+  }
+
+  energy=(countofcell-neighber_of_deathcell)*coefficientmatrix_biofilm[celltype,1]+neighber_of_deathcell*interaction_cell_death+countofmatrix*coefficientmatrix_biofilm[celltype,2]
+
+  return(energy)
+}
+
+#calculation capacity
+calculation_capacity <- function(celltype,site_i,site_j,Matrix_of_cell,Matrix_of_matrix,size_matrix)
+{
+  #neibor_j=c(site_j-1,site_j-1,site_j-1,site_j,site_j+1,site_j+1,site_j+1,site_j,site_j)
+  #neibor_i=c(site_i-1,site_i,site_i+1,site_i+1,site_i+1,site_i,site_i-1,site_i-1,site_i)
+  countofcell=0
+  countofmatrix=0
+  #for(countsite in 1:9)
+  #{
+  #  if(neibor_i[countsite]>0 & neibor_i[countsite]<sizematrix+1 & neibor_j[countsite]>0 & neibor_j[countsite]<sizematrix+1)
+  #    countofcell=countofcell+Matrix_of_cell[neibor_i[countsite],neibor_j[countsite]]
+  #}
+  #for(countsite in 1:9)
+  #{
+  #  if(neibor_i[countsite]>0 & neibor_i[countsite]<sizematrix+1 & neibor_j[countsite]>0 & neibor_j[countsite]<sizematrix+1)
+  #    countofmatrix=countofmatrix+Matrix_of_matrix[neibor_i[countsite],neibor_j[countsite]]
+  #}
+  countofcell=Matrix_of_cell[site_i,site_j]
+  countofmatrix=Matrix_of_matrix[site_i,site_j]
+  if(celltype==1)
+  {
+    probability_of_capacity=(c1_weight*countofcell+c2_weight*countofmatrix)
+  }
+  if(celltype==2)
+  {
+    probability_of_capacity=(c2_weight*countofcell+c3_weight*countofmatrix)
+  }
+  return(probability_of_capacity)
+}
+
+
+#calculation deathrate
+calculation_deathrate <- function(age_1,base_deathrate_1,base_death_rate_2,site_i,site_j)
+{
+  neibor_j=c(site_j-1,site_j-1,site_j-1,site_j,site_j+1,site_j+1,site_j+1,site_j,site_j)
+  neibor_i=c(site_i-1,site_i,site_i+1,site_i+1,site_i+1,site_i,site_i-1,site_i-1,site_i)
+  countofdeathcell=0
+  for(countsite in 1:9)
+  {
+    if(neibor_i[countsite]>0 & neibor_i[countsite]<size_matrix+1 & neibor_j[countsite]>0 & neibor_j[countsite]<size_matrix+1)
+    {
+      countofdeathcell=countofdeathcell+lattice_deathcell[neibor_i[countsite],neibor_j[countsite]]
+    }
+  }
+  if(age_1<20)
+    base_deathrate_1=0
+  if(age_1>19 & age<40)
+    base_deathrate_1=0.0005
+  if(age_1>39)
+    base_deathrate_1=0.001
+  
+  death_rate_1=base_deathrate_1+countofdeathcell*base_death_rate_2
+  return(death_rate_1)
+}
+
+
+
+#start simulation
+
+for(steps in 1:totalsteps_biofilm)
+{
+  
+  twolayer=runif(1,0,1)
+  if(twolayer<(division_rate)/(division_rate+secrete_rate+drift_rate)) 
+    # Division
+  {
+    indexcell=sample(1:total_cell,size=1)
+    
+   
+    
+    old_i=index_cell_i[indexcell]
+    old_j=index_cell_j[indexcell]
+    age=age_cell[indexcell]
+    death_rate=calculation_deathrate(age,base_deathrate,base_deathrate_2,old_i,old_j)
+    
+
+    if(runif(1,0,1)<death_rate & live_or_death[indexcell]==0)
+    {
+      live_or_death[indexcell]=1
+      lattice_deathcell[old_i,old_j]=lattice_deathcell[old_i,old_j]+1
+    }
+    
+    if(live_or_death[indexcell]==0)
+    {
+    
+    
+    new_ij=choose_newsite_create(old_i,old_j)
+    new_i=new_ij[1]
+    new_j=new_ij[2]
+    
+    if(new_j>0 & new_j<(size_matrix+1) & new_i>0 & new_i<(size_matrix+1))
+    {
+      if(lattice_cell[new_i,new_j]<(limit_of_cell_layer))
+      {
+        #energy
+        energy_capacity=calculation_capacity(1,new_i,new_j,lattice_cell,lattice_matrix,size_matrix)
+        energy_interaction=calculation_energy(1,new_i,new_j,lattice_cell,lattice_matrix,size_matrix)
+        
+        if(runif(1)<exp(-(c_weight*energy_capacity+j_weight*energy_interaction)))
+        {
+          lattice_cell[new_i,new_j]=lattice_cell[new_i,new_j]+1
+          lattice_cell_new[new_i,new_j]=lattice_cell_new[new_i,new_j]+1
+          index_cell_i=c(index_cell_i,new_i)
+          index_cell_j=c(index_cell_j,new_j)
+          if(runif(1,0,1)<0.5)
+          #age_cell[indexcell]=age_cell[indexcell]+1
+          {age_cell=c(age_cell,0)}
+          else
+          {age_cell=c(age_cell,age_cell[indexcell])
+          age_cell[indexcell]=0}
+          live_or_death=c(live_or_death,0)
+          total_cell=total_cell+1
+          successunmber_cell=successunmber_cell+1
+        }
+        
+        
+        # newenergy=calculation_energy(1,new_i,new_j,lattice_cell,lattice_matrix,size_matrix)
+        # oldenergy=0
+        # 
+        # if(newenergy<=oldenergy)
+        # {
+        #   lattice_cell[new_i,new_j]=lattice_cell[new_i,new_j]+1
+        #   lattice_cell_new[new_i,new_j]=lattice_cell_new[new_i,new_j]+1
+        #   index_cell_i=c(index_cell_i,new_i)
+        #   index_cell_j=c(index_cell_j,new_j)
+        #   total_cell=total_cell+1
+        #   successunmber_cell=successunmber_cell+1
+        # }
+        # else
+        # {
+        #   if(runif(1)<exp(-(newenergy-oldenergy))/exp(-(oldenergy-newenergy)))
+        #   {
+        #     lattice_cell[new_i,new_j]=lattice_cell[new_i,new_j]+1
+        #     lattice_cell_new[new_i,new_j]=lattice_cell_new[new_i,new_j]+1
+        #     index_cell_i=c(index_cell_i,new_i)
+        #     index_cell_j=c(index_cell_j,new_j)
+        #     total_cell=total_cell+1
+        #     successunmber_cell=successunmber_cell+1
+        #   }
+        # }
+        
+        
+        
+        
+        
+      }
+    }
+    }
+  }
+  #secrete
+  else if(twolayer<(division_rate+secrete_rate)/(division_rate+secrete_rate+drift_rate))
+  {
+    indexcell=sample(1:total_cell,size=1)
+    old_i=index_cell_i[indexcell]
+    old_j=index_cell_j[indexcell]
+    
+    new_ij=choose_newsite_create(old_i,old_j)
+    new_i=new_ij[1]
+    new_j=new_ij[2]
+    
+    if(new_j>0 & new_j<(size_matrix+1) & new_i>0 & new_i<(size_matrix+1))
+    {
+      if(lattice_matrix[new_i,new_j]<(limit_of_matrix_layer))
+      {
+        #energy
+        energy_capacity=calculation_capacity(2,new_i,new_j,lattice_cell,lattice_matrix,size_matrix)
+        energy_interaction=calculation_energy(2,new_i,new_j,lattice_cell,lattice_matrix,size_matrix)
+        if(runif(1)<exp(-(c_weight*energy_capacity+j_weight*energy_interaction)))
+        {
+          lattice_matrix[new_i,new_j]=lattice_matrix[new_i,new_j]+1
+          lattice_matrix_new[new_i,new_j]=lattice_matrix_new[new_i,new_j]+1
+          index_matrix_i=c(index_matrix_i,new_i)
+          index_matrix_j=c(index_matrix_j,new_j)
+          total_matrix=total_matrix+1
+          successunmber_matrix=successunmber_matrix+1
+        }
+        
+        
+        
+        # newenergy=calculation_energy(2,new_i,new_j,lattice_cell,lattice_matrix,size_matrix)
+        # oldenergy=0
+        # 
+        # if(newenergy<=oldenergy)
+        # {
+        #   lattice_matrix[new_i,new_j]=lattice_matrix[new_i,new_j]+1
+        #   lattice_matrix_new[new_i,new_j]=lattice_matrix_new[new_i,new_j]+1
+        #   index_matrix_i=c(index_matrix_i,new_i)
+        #   index_matrix_j=c(index_matrix_j,new_j)
+        #   total_matrix=total_matrix+1
+        #   successunmber_matrix=successunmber_matrix+1
+        # }
+        # else
+        # {
+        #   if(runif(1)<exp(-(newenergy-oldenergy))/exp(-(oldenergy-newenergy)))
+        #   {
+        #     lattice_matrix[new_i,new_j]=lattice_matrix[new_i,new_j]+1
+        #     lattice_matrix_new[new_i,new_j]=lattice_matrix_new[new_i,new_j]+1
+        #     index_matrix_i=c(index_matrix_i,new_i)
+        #     index_matrix_j=c(index_matrix_j,new_j)
+        #     total_matrix=total_matrix+1
+        #     successunmber_matrix=successunmber_matrix+1
+        #   }
+        # }
+      }
+    }
+  }
+  #drifting
+  else
+  {
+    if(drift_cell_rate==0 & drift_matrix_rate==0)
+    {
+      indexall=sample(1:(total_cell+total_matrix),size=1)
+    }
+    else
+    {
+      if(runif(1)<(drift_cell_rate/(drift_cell_rate+drift_matrix_rate)))
+      {
+        indexall=sample(1:total_cell,size=1)
+      }
+      else
+      {
+        indexall=total_cell+sample(1:total_matrix,size=1)
+      }
+    }
+    # drifting cell
+    if(indexall<(total_cell+1))
+    {
+      indexcell=indexall
+      age=age_cell[indexcell]
+      death_rate=calculation_deathrate(age,base_deathrate,base_deathrate_2,index_cell_i[indexcell],index_cell_j[indexcell])
+      
+      if(runif(1,0,1)<death_rate & live_or_death[indexcell]==0)
+      {
+        live_or_death[indexcell]=1
+        lattice_deathcell[index_cell_i[indexall],index_cell_j[indexall]]=lattice_deathcell[index_cell_i[indexall],index_cell_j[indexall]]+1
+      }
+      
+      if(live_or_death[indexcell]==0)
+      {
+      old_i=index_cell_i[indexcell]
+      old_j=index_cell_j[indexcell]
+      
+      new_ij=choose_newsite_drift(old_i,old_j)
+      new_i=new_ij[1]
+      new_j=new_ij[2]
+      
+      if(new_j>0 & new_j<(size_matrix+1) & new_i>0 & new_i<(size_matrix+1))
+      {
+        if(lattice_cell[new_i,new_j]<(limit_of_cell_layer))
+        {
+          #energy
+          lattice_cell_new[old_i,old_j]=lattice_cell_new[old_i,old_j]-1
+          newenergy=c_weight*calculation_capacity(1,new_i,new_j,lattice_cell_new,lattice_matrix,size_matrix)+j_weight*calculation_energy(1,new_i,new_j,lattice_cell_new,lattice_matrix,size_matrix)
+          oldenergy=c_weight*calculation_capacity(1,old_i,old_j,lattice_cell_new,lattice_matrix,size_matrix)+j_weight*calculation_energy(1,old_i,old_j,lattice_cell_new,lattice_matrix,size_matrix)
+          
+          if(newenergy<=oldenergy)
+          {
+            lattice_cell[new_i,new_j]=lattice_cell[new_i,new_j]+1
+            lattice_cell[old_i,old_j]=lattice_cell[old_i,old_j]-1
+            lattice_cell_new[new_i,new_j]=lattice_cell_new[new_i,new_j]+1
+            index_cell_i[indexcell]=new_i
+            index_cell_j[indexcell]=new_j
+            successunmber_cellmove=successunmber_cellmove+1
+            if(live_or_death[indexcell]==1)
+            {
+              lattice_deathcell[new_i,new_j]=lattice_deathcell[new_i,new_j]+1
+              lattice_deathcell[old_i,old_j]=lattice_deathcell[old_i,old_j]-1
+            }
+          }
+          else
+          {
+            if(runif(1)<exp(-(newenergy-oldenergy)))
+            {
+              lattice_cell[new_i,new_j]=lattice_cell[new_i,new_j]+1
+              lattice_cell[old_i,old_j]=lattice_cell[old_i,old_j]-1
+              lattice_cell_new[new_i,new_j]=lattice_cell_new[new_i,new_j]+1
+              index_cell_i[indexcell]=new_i
+              index_cell_j[indexcell]=new_j
+              successunmber_cellmove=successunmber_cellmove+1
+              if(live_or_death[indexcell]==1)
+              {
+                lattice_deathcell[new_i,new_j]=lattice_deathcell[new_i,new_j]+1
+                lattice_deathcell[old_i,old_j]=lattice_deathcell[old_i,old_j]-1
+              }
+            }
+            else
+            {
+              lattice_cell_new[old_i,old_j]=lattice_cell_new[old_i,old_j]+1
+            }
+          }
+        }
+      }
+      }
+    }
+    #drifting matrix
+    else
+    {
+      indexmatrix=indexall-total_cell
+      old_i=index_matrix_i[indexmatrix]
+      old_j=index_matrix_j[indexmatrix]
+      
+      new_ij=choose_newsite_drift(old_i,old_j)
+      new_i=new_ij[1]
+      new_j=new_ij[2]
+      
+      if(new_j>0 & new_j<(size_matrix+1) & new_i>0 & new_i<(size_matrix+1))
+      {
+        if(lattice_matrix[new_i,new_j]<(limit_of_matrix_layer))
+        {
+          #energy
+          lattice_matrix_new[old_i,old_j]=lattice_matrix_new[old_i,old_j]-1
+          
+          newenergy=c_weight*calculation_capacity(2,new_i,new_j,lattice_cell,lattice_matrix_new,size_matrix)+j_weight*calculation_energy(2,new_i,new_j,lattice_cell,lattice_matrix_new,size_matrix)
+          oldenergy=c_weight*calculation_capacity(2,old_i,old_j,lattice_cell,lattice_matrix_new,size_matrix)+j_weight*calculation_energy(2,old_i,old_j,lattice_cell,lattice_matrix_new,size_matrix)
+          
+          if(newenergy<=oldenergy)
+          {
+            lattice_matrix[new_i,new_j]=lattice_matrix[new_i,new_j]+1
+            lattice_matrix[old_i,old_j]=lattice_matrix[old_i,old_j]-1
+            lattice_matrix_new[new_i,new_j]=lattice_matrix_new[new_i,new_j]+1
+            index_matrix_i[indexmatrix]=new_i
+            index_matrix_j[indexmatrix]=new_j
+            successunmber_matrixmove=successunmber_matrixmove+1
+          }
+          else
+          {
+            if(runif(1)<exp(-(newenergy-oldenergy)))
+            {
+              lattice_matrix[new_i,new_j]=lattice_matrix[new_i,new_j]+1
+              lattice_matrix[old_i,old_j]=lattice_matrix[old_i,old_j]-1
+              lattice_matrix_new[new_i,new_j]=lattice_matrix_new[new_i,new_j]+1
+              index_matrix_i[indexmatrix]=new_i
+              index_matrix_j[indexmatrix]=new_j
+              successunmber_matrixmove=successunmber_matrixmove+1
+            }
+            else
+            {
+              lattice_matrix_new[old_i,old_j]=lattice_cell_new[old_i,old_j]+1
+            }
+          }
+        }
+      }
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+  }
+  
+  
+  age_cell=age_cell+1
+  
+  
+  #draw pic
+  if(as.integer(steps/moviestep_biofilm)==(steps/moviestep_biofilm))
+  {
+    a=steps/moviestep_biofilm
+    b=10
+    c=1
+    while(a/b>=1){b=b*10
+    c=c+1}
+    print(steps/moviestep_biofilm)
+    numberofmovie=as.character(steps/moviestep_biofilm)
+    NAME=paste0(numberofmovie,".pdf",sep='')
+    for(loopadd0 in 1:(6-c))
+      NAME=paste0(0,NAME)
+    Nameofpic=paste0('t=',numberofmovie)
+    
+    
+    
+    setwd(dir) 
+    pdf(file=NAME,width=12,height=6)
+    par(mar=c(1,1,1,1),mfrow=c(1,2))
+    max_celllayer=limit_of_cell_layer
+    max_matrixlayer=limit_of_matrix_layer
+    plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+    #mtext(Nameofpic,side=1,line=0,cex=1)
+    for(i in 1:size_matrix)
+    {
+      for(j in 1:size_matrix)
+      {
+        par(new=T)
+        if(lattice_matrix[i,j]!=0)
+          polygon(c(j-1,j,j,j-1),c(size_matrix-i,size_matrix-i,size_matrix-i+1,size_matrix-i+1), density = NULL, border = F, col = rgb(1-lattice_matrix[i,j]/max_matrixlayer*190/255,1-lattice_matrix[i,j]/max_matrixlayer*150/255,1-lattice_matrix[i,j]/max_matrixlayer*30/255))
+      }
+    }
+    
+    for(i in 1:size_matrix)
+    {
+      for(j in 1:size_matrix)
+      {
+        par(new=T)
+        if(lattice_cell[i,j]!=0)
+          polygon(c(j-1+0.2,j-0.2,j-0.2,j-1+0.2),c(size_matrix-i+0.2,size_matrix-i+0.2,size_matrix-i+1-0.2,size_matrix-i+1-0.2), density = NULL, border = F, col = rgb(1,1-lattice_cell[i,j]/max_celllayer,1-lattice_cell[i,j]/max_celllayer))
+      }
+    }
+    
+    
+    
+    max_celllayer=limit_of_cell_layer
+    max_matrixlayer=limit_of_matrix_layer
+    plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+  
+    plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+    #mtext(Nameofpic,side=1,line=0,cex=1)
+    
+    for(i in 1:size_matrix)
+    {
+      for(j in 1:size_matrix)
+      {
+        par(new=T)
+        if(lattice_cell[i,j]!=0)
+        {
+          average_age=mean(age_cell[which(index_cell_i==i & index_cell_j==j)])
+          if(average_age!='NaN')
+          {
+            polygon(c(j-1+0.2,j-0.2,j-0.2,j-1+0.2),c(size_matrix-i+0.2,size_matrix-i+0.2,size_matrix-i+1-0.2,size_matrix-i+1-0.2), density = NULL, border = F, col = rgb(1-average_age/(totalsteps_biofilm+1),1-average_age/(totalsteps_biofilm+1),0))
+          }
+        }
+      }
+    }
+    
+    while (!is.null(dev.list()))  dev.off()
+    
+    TL_successunmber_cell=c(TL_successunmber_cell,successunmber_cell)
+    TL_successunmber_matrix=c(TL_successunmber_matrix,successunmber_matrix)
+    TL_successunmber_cellmove=c(TL_successunmber_cellmove,successunmber_cellmove)
+    TL_successunmber_matrixmove=c(TL_successunmber_matrixmove,successunmber_matrixmove)
+    
+    if(ifcut==(steps/moviestep_biofilm))
+    {
+      if(ifsqr==1)
+      {
+        for(coorx in coorx1:coorx2)
+        {
+          for(coory in coory1:coory2)
+          {
+            lattice_cell[coorx,coory]=0
+            lattice_cell_new[coorx,coory]=0
+            lattice_deathcell[coorx,coory]=0
+            lattice_matrix[coorx,coory]=0
+            lattice_matrix_new[coorx,coory]=0
+            indexsites=which(index_cell_i==coorx & index_cell_j==coory)
+            indexsites_m=which(index_matrix_i==coorx & index_matrix_j==coory)
+            if(length(indexsites)!=0)
+            {
+            age_cell=age_cell[-indexsites]
+            index_cell_i=index_cell_i[-indexsites]
+            index_cell_j=index_cell_j[-indexsites]
+            live_or_death=live_or_death[-indexsites]
+            total_cell=total_cell-length(indexsites)
+            successunmber_cell=successunmber_cell-length(indexsites)
+            }
+            if(length(indexsites_m)!=0)
+            {
+            index_matrix_i=index_matrix_i[-indexsites_m]
+            index_matrix_j=index_matrix_j[-indexsites_m]
+            
+            total_matrix=total_matrix-length(indexsites_m)
+            successunmber_matrix=successunmber_matrix-length(indexsites_m)
+            }
+          }
+        }
+      }
+      
+      if(ifround==1)
+      {
+        coorxvec=c()
+        cooryvec=c()
+        for(coorx_i in 1:size_matrix)
+        {
+          for(coory_j in 1:size_matrix)
+          {
+            if((abs(coorx_i-roundcenter_x)^2+abs(coory_j-roundcenter_y)^2)^0.5<round_r)
+              {
+              coorxvec=c(coorxvec,coorx_i)
+              cooryvec=c(cooryvec,coory_j)
+              }
+          }
+        }
+        
+        for(cutsite in 1:length(coorxvec))
+        {
+            coorx=coorxvec[cutsite]
+            coory=cooryvec[cutsite]
+            lattice_cell[coorx,coory]=0
+            lattice_cell_new[coorx,coory]=0
+            lattice_deathcell[coorx,coory]=0
+            lattice_matrix[coorx,coory]=0
+            lattice_matrix_new[coorx,coory]=0
+            indexsites=which(index_cell_i==coorx & index_cell_j==coory)
+            indexsites_m=which(index_matrix_i==coorx & index_matrix_j==coory)
+            if(length(indexsites)!=0)
+            {
+              age_cell=age_cell[-indexsites]
+              index_cell_i=index_cell_i[-indexsites]
+              index_cell_j=index_cell_j[-indexsites]
+              live_or_death=live_or_death[-indexsites]
+              total_cell=total_cell-length(indexsites)
+              successunmber_cell=successunmber_cell-length(indexsites)
+            }
+            if(length(indexsites_m)!=0)
+            {
+              index_matrix_i=index_matrix_i[-indexsites_m]
+              index_matrix_j=index_matrix_j[-indexsites_m]
+              
+              total_matrix=total_matrix-length(indexsites_m)
+              successunmber_matrix=successunmber_matrix-length(indexsites_m)
+            }
+          
+        }
+        
+        
+      }
+      
+      
+      
+      
+    }
+    
+    #cutline
+    for(cutline1yloop in seq(cutline1y-cutrange,cutline1y+cutrange,1))
+    {
+      cutline1=rbind(cutline1,lattice_cell[cutline1yloop,])
+      cutline1=rbind(cutline1,lattice_matrix[cutline1yloop,])
+    }
+    for(cutline2yloop in seq(cutline2y-cutrange,cutline2y+cutrange,1))
+    {
+      cutline2=rbind(cutline2,lattice_cell[cutline2yloop,])
+      cutline2=rbind(cutline2,lattice_matrix[cutline2yloop,])
+    }
+    for(cutline3yloop in seq(cutline3y-cutrange,cutline3y+cutrange,1))
+    {
+      cutline3=rbind(cutline3,lattice_cell[cutline3yloop,])
+      cutline3=rbind(cutline3,lattice_matrix[cutline3yloop,])
+    }
+    
+  }
+  
+  
+
+  
+}
+
+
+while (!is.null(dev.list()))  dev.off()
+
+
+
+
+
+setwd(dirsave) 
+pdf(file='snap.pdf',width=12,height=8)
+par(mar=c(1,1,1,1),mfrow=c(2,3))
+max_celllayer=limit_of_cell_layer
+max_matrixlayer=limit_of_matrix_layer
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+#mtext(Nameofpic,side=1,line=0,cex=1)
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_matrix[i,j]!=0)
+      polygon(c(j-1,j,j,j-1),c(size_matrix-i,size_matrix-i,size_matrix-i+1,size_matrix-i+1), density = NULL, border = F, col = rgb(1-lattice_matrix[i,j]/max_matrixlayer*190/255,1-lattice_matrix[i,j]/max_matrixlayer*150/255,1-lattice_matrix[i,j]/max_matrixlayer*30/255))
+  }
+}
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_cell[i,j]!=0)
+      polygon(c(j-1+0.2,j-0.2,j-0.2,j-1+0.2),c(size_matrix-i+0.2,size_matrix-i+0.2,size_matrix-i+1-0.2,size_matrix-i+1-0.2), density = NULL, border = F, col = rgb(1,1-lattice_cell[i,j]/max_celllayer,1-lattice_cell[i,j]/max_celllayer))
+  }
+}
+# legend(1,11,legend=c("3 matrix"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1-3/max_matrixlayer*190/255,1-3/max_matrixlayer*150/255,1-3/max_matrixlayer*30/255),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,9,legend=c("2 matrix"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1-2/max_matrixlayer*190/255,1-2/max_matrixlayer*150/255,1-2/max_matrixlayer*30/255),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,7,legend=c("1 matrix"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1-1/max_matrixlayer*190/255,1-1/max_matrixlayer*150/255,1-1/max_matrixlayer*30/255),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,5,legend=c("3 Cell"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1,1-3/max_celllayer,1-3/max_celllayer),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,3,legend=c("2 Cell"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1,1-2/max_celllayer,1-2/max_celllayer),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,1,legend=c("1 Cell"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1,1-1/max_celllayer,1-1/max_celllayer),bty="n",pch=15,lwd=,text.col='black')
+
+
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+
+
+
+
+max_celllayer=max(lattice_cell)
+max_matrixlayer=max(lattice_matrix)
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_matrix[i,j]!=0)
+      polygon(c(j-1,j,j,j-1),c(size_matrix-i,size_matrix-i,size_matrix-i+1,size_matrix-i+1), density = NULL, border = F, col = rgb(1-lattice_matrix[i,j]/max_matrixlayer*190/255,1-lattice_matrix[i,j]/max_matrixlayer*150/255,1-lattice_matrix[i,j]/max_matrixlayer*30/255))
+  }
+}
+
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+# legend(1,5,legend=c("3 matrix"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1-3/max_matrixlayer*190/255,1-3/max_matrixlayer*150/255,1-3/max_matrixlayer*30/255),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,3,legend=c("2 matrix"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1-2/max_matrixlayer*190/255,1-2/max_matrixlayer*150/255,1-2/max_matrixlayer*30/255),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,1,legend=c("1 matrix"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1-1/max_matrixlayer*190/255,1-1/max_matrixlayer*150/255,1-1/max_matrixlayer*30/255),bty="n",pch=15,lwd=,text.col='black')
+
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_cell[i,j]!=0)
+      polygon(c(j-1+0.2,j-0.2,j-0.2,j-1+0.2),c(size_matrix-i+0.2,size_matrix-i+0.2,size_matrix-i+1-0.2,size_matrix-i+1-0.2), density = NULL, border = F, col = rgb(1,1-lattice_cell[i,j]/max_celllayer,1-lattice_cell[i,j]/max_celllayer))
+  }
+}
+# legend(1,5,legend=c("3 Cell"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1,1-3/max_celllayer,1-3/max_celllayer),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,3,legend=c("2 Cell"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1,1-2/max_celllayer,1-2/max_celllayer),bty="n",pch=15,lwd=,text.col='black')
+# legend(1,1,legend=c("1 Cell"),cex=0.5,x.intersp=0.5,y.intersp=0,col=rgb(1,1-1/max_celllayer,1-1/max_celllayer),bty="n",pch=15,lwd=,text.col='black')
+
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+
+
+
+
+par(mar=c(2,5,2,2))
+plot(seq(1,length(TL_successunmber_cell),1),TL_successunmber_cell,type="p",tck=0.03,cex=0.3,las=1,xlab="",col='red',pch=19, ylab="", main="",xlim=c(0,countsteps_biofilm),ylim=c(0,50000),xaxt="n",yaxt="n",bty="L")
+par(new=T)
+plot(seq(1,length(TL_successunmber_matrix),1),TL_successunmber_matrix,type="p",tck=0.03,cex=0.3,las=1,xlab="",col='blue',pch=19, ylab="", main="",xlim=c(0,countsteps_biofilm),ylim=c(0,50000),xaxt="n",yaxt="n",bty="L")
+par(new=T)
+#plot(seq(1,countsteps_biofilm,1),TL_successunmber_cellmove,type="p",tck=0.03,cex=0.3,las=1,xlab="",col='pink',pch=19, ylab="", main="",xlim=c(0,countsteps_biofilm),ylim=c(0,50000),xaxt="n",yaxt="n",bty="L")
+#par(new=T)
+#plot(seq(1,countsteps_biofilm,1),TL_successunmber_matrixmove,type="p",tck=0.03,cex=0.3,las=1,xlab="",col='cyan',pch=19, ylab="", main="",xlim=c(0,countsteps_biofilm),ylim=c(0,50000),xaxt="n",yaxt="n",bty="L")
+axis(side=2,las=1,at=seq(0,50000,10000),mgp=c(0,0.5,0),tck=0.03,las=1,labels=seq(0,50000,10000),cex.axis=1)
+mtext("t",side=1.5,line=1,cex=1.5)
+mtext("Quantity",side=2,line=3,cex=1.5)
+legend(1,50000,legend=c("Cells"),cex=1,x.intersp=0.5,y.intersp=0,col='red',bty="n",pch=15,lwd=,text.col='black')
+legend(1,46000,legend=c("Matrix"),cex=1,x.intersp=0.5,y.intersp=0,col='blue',bty="n",pch=15,lwd=,text.col='black')
+#legend(1,42000,legend=c("Drifting movements of cells"),cex=1,x.intersp=0.5,y.intersp=0,col='pink',bty="n",pch=15,lwd=,text.col='black')
+#legend(1,38000,legend=c("Drifting movements of matrix"),cex=1,x.intersp=0.5,y.intersp=0,col='cyan',bty="n",pch=15,lwd=,text.col='black')
+
+
+#rownames = c("C=0", "C=1", "C=2", "C=3")
+#colnames = c("M=0","M=1", "M=2", "M=3")
+
+
+
+
+
+Stat_of_sitestates=matrix(0,nrow=limit_of_cell_layer+1,ncol=limit_of_matrix_layer+1)
+
+
+
+countofstate=0
+for(cells_stat in 0:limit_of_cell_layer)
+{
+  for(matrix_stat in 0:limit_of_matrix_layer)
+  {
+    
+    for(site_stat_i in 1:(size_matrix))
+    {
+      for(site_stat_j in 1:size_matrix)
+      {
+        if(lattice_cell[site_stat_i,site_stat_j]==cells_stat & lattice_matrix[site_stat_i,site_stat_j]==matrix_stat)
+        {
+          Stat_of_sitestates[cells_stat+1,matrix_stat+1]=Stat_of_sitestates[cells_stat+1,matrix_stat+1]+1
+        }
+      }
+    }
+    
+  }
+}
+
+Stat_of_sitestates[1,1]=0
+par(mar=c(6,2,1,1))
+barplot(t(Stat_of_sitestates),beside=T)
+for(C in 0:limit_of_cell_layer)
+{
+  mtext(C,side=1,line=4,cex=1,at=(limit_of_matrix_layer+1)/2+1+(limit_of_matrix_layer+2)*C,las=1)
+  for(M in 0:limit_of_matrix_layer)
+  {
+    mtext(M,side=1,line=2,cex=1,at=C*(limit_of_matrix_layer+2)+1+0.5+M,las=1)
+  }
+}
+mtext("Cell:",side=1,line=4,cex=1,at=-1,las=1)
+mtext("Matrix:",side=1,line=2,cex=1,at=-1,las=1)
+
+# #mtext("C=0,M=0",side=1,line=0,cex=0.5,at=1.5,las=2)
+# mtext("C=0,M=1",side=1,line=0,cex=0.7,at=2.5,las=2)
+# mtext("C=0,M=2",side=1,line=0,cex=0.7,at=3.5,las=2)
+# mtext("C=0,M=3",side=1,line=0,cex=0.7,at=4.5,las=2)
+# mtext("C=1,M=0",side=1,line=0,cex=0.7,at=6.5,las=2)
+# mtext("C=1,M=1",side=1,line=0,cex=0.7,at=7.5,las=2)
+# mtext("C=1,M=2",side=1,line=0,cex=0.7,at=8.5,las=2)
+# mtext("C=1,M=3",side=1,line=0,cex=0.7,at=9.5,las=2)
+# mtext("C=2,M=0",side=1,line=0,cex=0.7,at=11.5,las=2)
+# mtext("C=2,M=1",side=1,line=0,cex=0.7,at=12.5,las=2)
+# mtext("C=2,M=2",side=1,line=0,cex=0.7,at=13.5,las=2)
+# mtext("C=2,M=3",side=1,line=0,cex=0.7,at=14.5,las=2)
+# mtext("C=3,M=0",side=1,line=0,cex=0.7,at=16.5,las=2)
+# mtext("C=3,M=1",side=1,line=0,cex=0.7,at=17.5,las=2)
+# mtext("C=3,M=2",side=1,line=0,cex=0.7,at=18.5,las=2)
+# mtext("C=3,M=3",side=1,line=0,cex=0.7,at=19.5,las=2)
+# 
+# mtext("0cells",side=1,line=4,cex=1,at=3,las=1)
+# mtext("1cells",side=1,line=4,cex=1,at=8,las=1)
+# mtext("2cells",side=1,line=4,cex=1,at=13,las=1)
+# mtext("3cells",side=1,line=4,cex=1,at=18,las=1)
+
+#spatial auto
+spatialp1=c()
+spatialp2=c()
+for(spatialx in 1:size_matrix)
+{
+  for(spatialy in 1:size_matrix)
+  {
+    if((spatialx-1)>0 & spatialy>0 & (spatialx-1)<(size_matrix+1) & spatialy<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_cell[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_cell[spatialx-1,spatialy])
+    }
+    
+    if((spatialx+1)>0 & spatialy>0 & (spatialx+1)<(size_matrix+1) & spatialy<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_cell[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_cell[spatialx+1,spatialy])
+    }
+    
+    if((spatialx)>0 & (spatialy-1)>0 & (spatialx)<(size_matrix+1) & (spatialy-1)<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_cell[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_cell[spatialx,spatialy-1])
+    }
+    
+    if((spatialx)>0 & (spatialy+1)>0 & (spatialx)<(size_matrix+1) & (spatialy+1)<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_cell[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_cell[spatialx,spatialy+1])
+    }
+  }
+}
+cor_state_spatial_cell=cor.test(spatialp1,spatialp2,method="pearson")
+
+spatialp1=c()
+spatialp2=c()
+for(spatialx in 1:size_matrix)
+{
+  for(spatialy in 1:size_matrix)
+  {
+    if((spatialx-1)>0 & spatialy>0 & (spatialx-1)<(size_matrix+1) & spatialy<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_matrix[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_matrix[spatialx-1,spatialy])
+    }
+    
+    if((spatialx+1)>0 & spatialy>0 & (spatialx+1)<(size_matrix+1) & spatialy<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_matrix[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_matrix[spatialx+1,spatialy])
+    }
+    
+    if((spatialx)>0 & (spatialy-1)>0 & (spatialx)<(size_matrix+1) & (spatialy-1)<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_matrix[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_matrix[spatialx,spatialy-1])
+    }
+    
+    if((spatialx)>0 & (spatialy+1)>0 & (spatialx)<(size_matrix+1) & (spatialy+1)<(size_matrix+1))
+    {
+      spatialp1=c(spatialp1,lattice_matrix[spatialx,spatialy])
+      spatialp2=c(spatialp2,lattice_matrix[spatialx,spatialy+1])
+    }
+  }
+}
+cor_state_spatial_matrix=cor.test(spatialp1,spatialp2,method="pearson")
+
+
+c_correlation_x=c()
+c_correlation_y=c()
+for(cells_stat in 1:(limit_of_cell_layer+1))
+{
+  for(matrix_stat in 1:(limit_of_matrix_layer+1))
+  {
+    if(Stat_of_sitestates[cells_stat,matrix_stat]!=0)
+    {
+      for(pairofsite in 1:(Stat_of_sitestates[cells_stat,matrix_stat]))
+      {
+        c_correlation_x=c(c_correlation_x,cells_stat-1)
+        c_correlation_y=c(c_correlation_y,matrix_stat-1)
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+cor_state=cor.test(c_correlation_x,c_correlation_y,method="pearson")
+
+plot(Stat_of_sitestates,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,1),ylim=c(0,1),xaxt="n",yaxt="n",bty="n")
+legend(0,0.9,legend=c("Pearson:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.9,legend=c(round(cor_state$estimate,3)),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0,0.8,legend=c("Size:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.8,legend=c(size_matrix),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0,0.75,legend=c("Division:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.75,legend=c(round(division_rate/(division_rate+secrete_rate+drift_cell_rate+drift_matrix_rate),3)),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0.0,0.7,legend=c("Secrete:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.7,legend=c(round(secrete_rate/(division_rate+secrete_rate+drift_cell_rate+drift_matrix_rate),3)),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0.0,0.65,legend=c("Drift_cell:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.65,legend=c(round(drift_cell_rate/(division_rate+secrete_rate+drift_cell_rate+drift_matrix_rate),3)),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0.0,0.6,legend=c("Drift_matrix:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.6,legend=c(round(drift_matrix_rate/(division_rate+secrete_rate+drift_cell_rate+drift_matrix_rate),3)),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0.0,0.55,legend=c("Max_Cell_layers:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.55,legend=c(limit_of_cell_layer),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0.0,0.5,legend=c("Max_Matrix_layers:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.5,legend=c(limit_of_matrix_layer),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0.0,0.45,legend=c("C:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.45,legend=c(c_weight),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0.0,0.40,legend=c("J:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.40,legend=c(j_weight),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0,0.35,legend=c("Spatial-cell:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.35,legend=c(round(cor_state_spatial_cell$estimate,3)),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+legend(0,0.3,legend=c("Spatial-matrix:"),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=0,text.col='black')
+legend(0.6,0.3,legend=c(round(cor_state_spatial_matrix$estimate,3)),cex=0.9,x.intersp=0.5,y.intersp=0,col='white',bty="n",pch=15,lwd=,text.col='black')
+
+dev.off()
+
+plot(seq(1,5,1),c(-0.305,-0.405,-0.436,-0.493,-0.52),type="p",tck=0.03,cex=1,las=1,xlab="Total drift",col='red',pch=19, ylab="Pearson", main="",xlim=c(0,5),ylim=c(-1,0),bty="L")
+
+plot(c(0.1,0.2,0.4,0.6,0.8,0.9),c(-0.354,-0.391,-0.408,-0.386,-0.324,-0.236),type="p",tck=0.03,cex=1,las=1,xlab="Fraction Secrete/Divide",col='red',pch=19, ylab="Pearson", main="",xlim=c(0,1),ylim=c(-1,0),bty="L")
+
+plot(c(0.1,0.2,0.4,0.6,0.8,0.9),c(-0.308,-0.365,-0.38,-0.406,-0.35,-0.379),type="p",tck=0.03,cex=1,las=1,xlab="Fraction DriftM/DriftC",col='red',pch=19, ylab="Pearson", main="",xlim=c(0,1),ylim=c(-1,0),bty="L")
+
+plot(c(0.5,1,1.5,2,2.5,3),c(0.39,-0.22,-0.54,-0.66,-0.69,-0.7),type="p",tck=0.03,cex=1,las=1,xlab="C",col='red',pch=19, ylab="Pearson", main="",xlim=c(0,3),ylim=c(-1,1),bty="L")
+
+plot(seq(1,7,1),c(-0.182,-0.523,-0.67,-0.687,-0.657,-0.634,-0.619),type="p",tck=0.03,cex=1,las=1,xlab="Layers",col='red',pch=19, ylab="Pearson", main="",xlim=c(0,7),ylim=c(-1,0),bty="L")
+plot(seq(1,7,1),c(-0.07,0.06,-0.199,-0.432,-0.522,-0.562,-0.574),type="p",tck=0.03,cex=1,las=1,xlab="Layers",col='red',pch=19, ylab="Pearson", main="",xlim=c(0,7),ylim=c(-1,0.1),bty="L")
+
+
+setwd(dirsave) 
+pdf(file='snap_of_age.pdf',width=12,height=4)
+par(mar=c(1,1,1,1),mfrow=c(1,3))
+max_celllayer=limit_of_cell_layer
+max_matrixlayer=limit_of_matrix_layer
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+#mtext(Nameofpic,side=1,line=0,cex=1)
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_cell[i,j]!=0)
+    {
+      average_age=mean(age_cell[which(index_cell_i==i & index_cell_j==j)])
+    if(average_age!='NaN')
+    {
+      polygon(c(j-1+0.2,j-0.2,j-0.2,j-1+0.2),c(size_matrix-i+0.2,size_matrix-i+0.2,size_matrix-i+1-0.2,size_matrix-i+1-0.2), density = NULL, border = F, col = rgb(1-average_age/(totalsteps_biofilm+1),1-average_age/(totalsteps_biofilm+1),0))
+    }
+    }
+  }
+}
+
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+
+
+par(mar=c(1,1,1,1))
+max_celllayer=limit_of_cell_layer
+max_matrixlayer=limit_of_matrix_layer
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+#mtext(Nameofpic,side=1,line=0,cex=1)
+
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_cell[i,j]!=0)
+    {
+      number_deathcell=lattice_deathcell[i,j]
+      if(number_deathcell!=0)
+      {
+        polygon(c(j-1+0.3,j-0.3,j-0.3,j-1+0.3),c(size_matrix-i+0.3,size_matrix-i+0.3,size_matrix-i+1-0.3,size_matrix-i+1-0.3), density = NULL, border = F, col = rgb((1-number_deathcell*50/255),(1-number_deathcell*50/255),(1-number_deathcell*50/255)))
+      }
+    }
+  }
+}
+
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+
+
+par(mar=c(1,1,1,1))
+max_celllayer=limit_of_cell_layer
+max_matrixlayer=limit_of_matrix_layer
+plot(1,1,type="p",tck=0.03,cex=0.5,las=1,xlab="",col='white',pch=19, ylab="", main="",xlim=c(0,size_matrix),ylim=c(0,size_matrix),xaxt="n",yaxt="n",bty="n")
+#mtext(Nameofpic,side=1,line=0,cex=1)
+
+
+for(i in 1:size_matrix)
+{
+  for(j in 1:size_matrix)
+  {
+    par(new=T)
+    if(lattice_cell[i,j]!=0)
+    {
+      number_deathcell=lattice_cell[i,j]-lattice_deathcell[i,j]
+      if(number_deathcell!=0)
+      {
+        polygon(c(j-1+0.3,j-0.3,j-0.3,j-1+0.3),c(size_matrix-i+0.3,size_matrix-i+0.3,size_matrix-i+1-0.3,size_matrix-i+1-0.3), density = NULL, border = F, col = rgb((1),(1-number_deathcell*50/255),(1-number_deathcell*50/255)))
+      }
+    }
+  }
+}
+dev.off()
+
+length(which(live_or_death==1))
+total_cell
+
+hist(age_cell[which(live_or_death==0)])
+hist(age_cell[which(live_or_death==1)])
+hist(age_cell/10000)
+
+
+#show the cut
+cutline1
+cutline2
+cutline3
+
+dirsave1='/Users/yeyusong/Desktop/德国工作 project/Cell-matrix/results/cutmovies'
+
+setwd(dirsave1) 
+
+
+
+for(cutstep in ifcut:(totalsteps_biofilm/moviestep_biofilm))
+{
+  a=cutstep
+  b=10
+  c=1
+  while(a/b>=1){b=b*10
+  c=c+1}
+  print(cutstep)
+  numberofmovie=as.character(cutstep)
+  NAME=paste0(numberofmovie,".pdf",sep='')
+  for(loopadd0 in 1:(6-c))
+    NAME=paste0(0,NAME)
+  Nameofpic=paste0('t=',numberofmovie)
+  
+pdf(file=NAME,width=12,height=4)
+
+#cell
+par(mar=c(2,2,1,1),mfrow=c(1,3))
+cutline3aver=rep(0,length((coory1-10):(coory2+10)))
+for(cutline3aver_index in seq(1+cutstep*(cutrange*2+1)*2-1,1+cutstep*(cutrange*2+1)*2+1-(cutrange*2+1)*2,-cutrange*2))
+{
+  cutline3aver=cutline3[cutline3aver_index,(coory1-10):(coory2+10)]+cutline3aver
+}
+cutline3aver=cutline3aver/(cutrange*2+1)
+plot(seq((coory1-10),(coory2+10),1),cutline3aver,type="l",tck=0.03,cex=0.1,las=1,xlab="",col='red',pch=19, ylab="", main="",xlim=c((coory1-10),(coory2+10)),ylim=c(0,limit_of_cell_layer),bty="n")
+
+cutline2aver=rep(0,length((coory1-10):(coory2+10)))
+for(cutline2aver_index in seq(1+cutstep*(cutrange*2+1)*2-1,1+cutstep*(cutrange*2+1)*2+1-(cutrange*2+1)*2,-cutrange*2))
+{
+  cutline2aver=cutline2[cutline3aver_index,(coory1-10):(coory2+10)]+cutline2aver
+}
+cutline2aver=cutline2aver/(cutrange*2+1)
+plot(seq((coory1-10),(coory2+10),1),cutline2aver,type="l",tck=0.03,cex=0.1,las=1,xlab="",col='red',pch=19, ylab="", main="",xlim=c((coory1-10),(coory2+10)),ylim=c(0,limit_of_cell_layer),bty="n")
+
+cutline1aver=rep(0,length((coory1-10):(coory2+10)))
+for(cutline1aver_index in seq(1+cutstep*(cutrange*2+1)*2-1,1+cutstep*(cutrange*2+1)*2+1-(cutrange*2+1)*2,-cutrange*2))
+{
+  cutline1aver=cutline1[cutline3aver_index,(coory1-10):(coory2+10)]+cutline1aver
+}
+cutline1aver=cutline1aver/(cutrange*2+1)
+plot(seq((coory1-10),(coory2+10),1),cutline1aver,type="l",tck=0.03,cex=0.1,las=1,xlab="",col='red',pch=19, ylab="", main="",xlim=c((coory1-10),(coory2+10)),ylim=c(0,limit_of_cell_layer),bty="n")
+
+dev.off()
+
+}
+
+#matrix
+par(mar=c(2,2,1,1),mfrow=c(1,3))
+cutline3aver=rep(0,length((coory1-10):(coory2+10)))
+for(cutline3aver_index in seq(1+cutstep*(cutrange*2+1)*2,1+cutstep*(cutrange*2+1)*2+2-(cutrange*2+1)*2,-cutrange*2))
+{
+  cutline3aver=cutline3[cutline3aver_index,(coory1-10):(coory2+10)]+cutline3aver
+}
+cutline3aver=cutline3aver/(cutrange*2+1)
+plot(seq((coory1-10),(coory2+10),1),cutline3aver,type="l",tck=0.03,cex=0.1,las=1,xlab="",col='blue',pch=19, ylab="", main="",xlim=c((coory1-10),(coory2+10)),ylim=c(0,limit_of_matrix_layer),bty="n")
+
+cutline2aver=rep(0,length((coory1-10):(coory2+10)))
+for(cutline2aver_index in seq(1+cutstep*(cutrange*2+1)*2,1+cutstep*(cutrange*2+1)*2+2-(cutrange*2+1)*2,-cutrange*2))
+{
+  cutline2aver=cutline2[cutline3aver_index,(coory1-10):(coory2+10)]+cutline2aver
+}
+cutline2aver=cutline2aver/(cutrange*2+1)
+plot(seq((coory1-10),(coory2+10),1),cutline2aver,type="l",tck=0.03,cex=0.1,las=1,xlab="",col='blue',pch=19, ylab="", main="",xlim=c((coory1-10),(coory2+10)),ylim=c(0,limit_of_matrix_layer),bty="n")
+
+cutline1aver=rep(0,length((coory1-10):(coory2+10)))
+for(cutline1aver_index in seq(1+cutstep*(cutrange*2+1)*2,1+cutstep*(cutrange*2+1)*2+2-(cutrange*2+1)*2,-cutrange*2))
+{
+  cutline1aver=cutline1[cutline3aver_index,(coory1-10):(coory2+10)]+cutline1aver
+}
+cutline1aver=cutline1aver/(cutrange*2+1)
+plot(seq((coory1-10),(coory2+10),1),cutline1aver,type="l",tck=0.03,cex=0.1,las=1,xlab="",col='blue',pch=19, ylab="", main="",xlim=c((coory1-10),(coory2+10)),ylim=c(0,+limit_of_matrix_layer),bty="n")
+
+
+length(which(live_or_death==1))
+total_cell
+
